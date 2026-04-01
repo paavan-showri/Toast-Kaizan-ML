@@ -1,0 +1,7 @@
+pandas
+openpyxl
+streamlit
+networkx
+sentence-transformers
+transformers
+torch
