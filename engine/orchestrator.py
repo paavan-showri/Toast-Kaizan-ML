@@ -6,6 +6,7 @@ from typing import Callable, Optional
 import pandas as pd
 
 from engine.normalizer import normalize_columns
+from engine.fpc_table_extractor import extract_fpc_table, looks_like_embedded_fpc
 from engine.parser import parse_dataframe
 from engine.semantic_extractor import extract_semantics
 from engine.embedding_matcher import EmbeddingMatcher
@@ -70,6 +71,8 @@ def run_pipeline(
     df: pd.DataFrame,
     llm_json_fn: Optional[Callable[[str], dict]] = None,
 ) -> tuple[list[ProcessStep], list[dict]]:
+    if looks_like_embedded_fpc(df):
+        df = extract_fpc_table(df)
     df = normalize_columns(df)
     steps = parse_dataframe(df)
 

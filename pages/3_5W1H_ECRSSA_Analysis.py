@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from engine.orchestrator import run_pipeline, steps_to_dataframe  # noqa: E402
+from engine.fpc_table_extractor import extract_fpc_table, looks_like_embedded_fpc  # noqa: E402
 
 st.set_page_config(page_title="5W1H + ECRSSA Analysis", layout="wide")
 st.title("5W1H + ECRSSA Analysis")
@@ -21,9 +22,14 @@ st.caption("Upload a flow process chart in CSV or Excel format.")
 
 @st.cache_data(show_spinner=False)
 def read_uploaded_file(uploaded_file):
-    if uploaded_file.name.lower().endswith(".csv"):
-        return pd.read_csv(uploaded_file)
-    return pd.read_excel(uploaded_file)
+    name = uploaded_file.name.lower()
+    if name.endswith('.csv'):
+        try:
+            return pd.read_csv(uploaded_file)
+        except Exception:
+            uploaded_file.seek(0)
+            return pd.read_csv(uploaded_file, header=None)
+    return pd.read_excel(uploaded_file, header=None)
 
 
 def llm_json_fn(prompt: str) -> dict:
@@ -51,8 +57,15 @@ if uploaded is not None:
         st.error("The uploaded file is empty or contains no rows.")
         st.stop()
 
+    preview_df = raw_df
+    if looks_like_embedded_fpc(raw_df):
+        try:
+            preview_df = extract_fpc_table(raw_df)
+        except Exception:
+            preview_df = raw_df
+
     with st.expander("Preview uploaded data", expanded=False):
-        st.dataframe(raw_df, width="stretch")
+        st.dataframe(preview_df, width="stretch")
 
     with st.spinner("Running pipeline..."):
         steps, patterns = run_pipeline(raw_df, llm_json_fn=llm_json_fn if use_llm else None)
