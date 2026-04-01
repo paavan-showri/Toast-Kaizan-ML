@@ -11,7 +11,7 @@ except Exception:  # pragma: no cover
 
 
 class MLClassifier:
-    """Zero-shot classifier with deterministic fallback."""
+    """Zero-shot classifier with deterministic fallback and empty-text protection."""
 
     def __init__(self, model_name: str = "facebook/bart-large-mnli"):
         self.available = pipeline is not None
@@ -23,16 +23,32 @@ class MLClassifier:
                 self.available = False
                 self.zero_shot = None
 
+    def _safe_text(self, text) -> str:
+        if text is None:
+            return ""
+        text = str(text).strip()
+        if text.lower() == "nan":
+            return ""
+        return text
+
     def _uniform_scores(self, labels: Iterable[str]) -> Dict[str, float]:
         labels = list(labels)
+        if not labels:
+            return {}
         score = 1.0 / len(labels)
         return {label: score for label in labels}
 
     def _classify(self, text: str, labels: list[str]) -> Dict[str, float]:
-        if not self.available:
+        text = self._safe_text(text)
+        if not labels:
+            return {}
+        if not self.available or not text:
             return self._uniform_scores(labels)
-        result = self.zero_shot(text, labels, multi_label=False)
-        return dict(zip(result["labels"], result["scores"]))
+        try:
+            result = self.zero_shot(text, labels, multi_label=False)
+            return dict(zip(result["labels"], result["scores"]))
+        except Exception:
+            return self._uniform_scores(labels)
 
     def classify_process(self, text: str) -> Dict[str, float]:
         return self._classify(text, PROCESS_CLASSES)

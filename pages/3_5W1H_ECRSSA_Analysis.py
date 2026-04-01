@@ -47,6 +47,10 @@ use_llm = st.checkbox("Use external LLM callback", value=False, help="Leave off 
 if uploaded is not None:
     raw_df = read_uploaded_file(uploaded)
 
+    if raw_df.empty or raw_df.shape[0] == 0:
+        st.error("The uploaded file is empty or contains no rows.")
+        st.stop()
+
     with st.expander("Preview uploaded data", expanded=False):
         st.dataframe(raw_df, width="stretch")
 

@@ -18,11 +18,18 @@ from engine.confidence import combine_confidence
 from models.schema import ProcessStep
 
 
-
 def _average_score_dicts(a: dict[str, float], b: dict[str, float]) -> dict[str, float]:
     keys = set(a) | set(b)
     return {k: (a.get(k, 0.0) + b.get(k, 0.0)) / 2.0 for k in keys}
 
+
+def _safe_step_text(step: ProcessStep) -> str:
+    text = (step.description or "").strip()
+    if not text or text.lower() == "nan":
+        text = (step.activity_raw or "").strip()
+    if not text or text.lower() == "nan":
+        text = "unknown manufacturing step"
+    return text
 
 
 def steps_to_dataframe(steps: list[ProcessStep]) -> pd.DataFrame:
@@ -59,7 +66,6 @@ def steps_to_dataframe(steps: list[ProcessStep]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-
 def run_pipeline(
     df: pd.DataFrame,
     llm_json_fn: Optional[Callable[[str], dict]] = None,
@@ -73,7 +79,7 @@ def run_pipeline(
     for step in steps:
         extract_semantics(step)
 
-        text = step.description or step.activity_raw
+        text = _safe_step_text(step)
         emb_class_scores = embedder.match_process_class(text)
         emb_waste_scores = embedder.match_waste(text)
         emb_va_scores = embedder.match_va(text)
@@ -86,7 +92,6 @@ def run_pipeline(
         step.waste_scores = _average_score_dicts(emb_waste_scores, ml_waste_scores)
         step.va_scores = _average_score_dicts(emb_va_scores, ml_va_scores)
 
-        # Keep strong symbolic/process extraction when available
         inferred_from_text = step.process_class
         scored_class = max(step.class_scores, key=step.class_scores.get)
         step.process_class = inferred_from_text if inferred_from_text and inferred_from_text != "unknown" else scored_class
